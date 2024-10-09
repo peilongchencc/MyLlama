@@ -210,6 +210,7 @@ quantized_model = quantization.fit(model)
 
 | 文件名                             | 文件简介                           | 备注      |
 |-----------------------------------|-----------------------------------|----------|
+| download_glm4.py                  | glm4-chat模型下载示例               |          |
 | glm4_chat_trans_batch.py          | glm4官方提供的batch示例版本(未量化)   |          |
 | glm4_chat_trans_batch_quant.py    | 量化版本                           |          |
 
