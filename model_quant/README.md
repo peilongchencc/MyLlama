@@ -19,8 +19,9 @@
   - [6. Intel Neural Compressor (INC)](#6-intel-neural-compressor-inc)
     - [用法:](#用法-3)
   - [总结：](#总结)
-  - [具体实例:](#具体实例)
+  - [glm4量化示例:](#glm4量化示例)
     - [文件对比:](#文件对比)
+    - [BitsAndBytesConfig 参数释义:](#bitsandbytesconfig-参数释义)
 
 在量化 LLM 时，通常使用以下几种库和工具包：
 
@@ -206,14 +207,57 @@ quantized_model = quantization.fit(model)
 这些工具包为不同的硬件和需求提供了灵活的量化选项。
 
 
-## 具体实例:
+## glm4量化示例:
 
-| 文件名                             | 文件简介                           | 备注      |
-|-----------------------------------|-----------------------------------|----------|
-| download_glm4.py                  | glm4-chat模型下载示例               |          |
-| glm4_chat_trans_batch.py          | glm4官方提供的batch示例版本(未量化)   |          |
-| glm4_chat_trans_batch_quant.py    | 量化版本                           |          |
+| 文件名                             | 文件简介                           | 备注                     |
+|-----------------------------------|-----------------------------------|-------------------------|
+| download_glm4.py                  | glm4-chat模型下载示例               |                         |
+| glm4_chat_trans_batch.py          | glm4官方提供的batch示例版本(未量化)   | 基于transformers         |
+| glm4_chat_trans_batch_quant.py    | 量化版本                           | 基于transformers         |
 
 ### 文件对比:
 
 ![](../docs/glm4_batch量化和未量化对比图.png)
+
+### BitsAndBytesConfig 参数释义:
+
+这是一个包装类，涵盖了所有可以用于已使用 `bitsandbytes` 加载的模型的属性和特性。
+
+该类替代了 `load_in_8bit` 或 `load_in_4bit`，因此这两种选项是互斥的。
+
+目前仅支持 `LLM.int8()`、`FP4` 和 `NF4` 量化方式。如果 `bitsandbytes` 未来增加了更多方法，则该类将增加相应的参数。
+
+参数说明:
+
+- `load_in_8bit` (`bool`, *可选*, 默认值为 `False`):
+  该标志用于启用 LLM.int8() 的 8 位量化功能。
+
+- `load_in_4bit` (`bool`, *可选*, 默认值为 `False`):
+  该标志用于通过替换 `bitsandbytes` 中的 Linear 层为 FP4/NF4 层来启用 4 位量化。
+
+- `llm_int8_threshold` (`float`, *可选*, 默认值为 6.0):
+  对应 `LLM.int8() : 8-bit Matrix Multiplication for Transformers at Scale` 论文（https://arxiv.org/abs/2208.07339）中提到的异常值检测的异常值阈值。任何超过该阈值的隐藏状态值将被视为异常值，并将在 fp16 精度下进行操作。通常情况下，值是正态分布的，即大多数值在 [-3.5, 3.5] 范围内，但对于大模型，有些系统性异常值的分布非常不同。此类异常值通常位于 [-60, -6] 或 [6, 60] 区间。对于大约绝对值为 5 的值，8 位量化效果较好，但超过该值后，性能损失显著。默认的阈值为 6，但对于不太稳定的模型（如小模型、微调模型），可能需要更低的阈值。
+
+- `llm_int8_skip_modules` (`List[str]`, *可选*):
+  显式列出不希望进行 8 位转换的模块列表。此功能对像 Jukebox 这样的模型非常有用，它在不同位置具有多个 head，并不一定位于最后一个位置。例如，对于 `CausalLM` 模型，最后的 `lm_head` 将保留其原始 `dtype`。
+
+- `llm_int8_enable_fp32_cpu_offload` (`bool`, *可选*, 默认值为 `False`):
+  此标志用于高级用例和对该功能有了解的用户。如果您希望将模型分成不同部分，并在 GPU 上以 int8 运行部分模型、在 CPU 上以 fp32 运行其他部分模型，则可以使用此标志。对于像 `google/flan-t5-xxl` 这样的大模型的卸载很有用。请注意，int8 操作不会在 CPU 上运行。
+
+- `llm_int8_has_fp16_weight` (`bool`, *可选*, 默认值为 `False`):
+  该标志允许使用 16 位的主权重来运行 LLM.int8()。对于微调很有用，因为权重在反向传播时不需要来回转换。
+
+- `bnb_4bit_compute_dtype` (`torch.dtype` 或 str, *可选*, 默认值为 `torch.float32`):
+  设置计算数据类型，该类型可以不同于输入数据类型。例如，输入可能是 fp32，但计算可以设置为 bf16 以提升计算速度。
+
+- `bnb_4bit_quant_type` (`str`, *可选*, 默认值为 `"fp4"`):
+  设置 `bnb.nn.Linear4Bit` 层的量化数据类型。可选项为 FP4 和 NF4，分别用 `fp4` 或 `nf4` 指定。
+
+- `bnb_4bit_use_double_quant` (`bool`, *可选*, 默认值为 `False`):
+  启用嵌套量化，该量化方法会将第一次量化的量化常数再次量化。
+
+- `bnb_4bit_quant_storage` (`torch.dtype` 或 str, *可选*, 默认值为 `torch.uint8`):
+  设置存储类型，用于打包 4 位量化参数。
+
+- `kwargs` (`Dict[str, Any]`, *可选*):
+  用于初始化配置对象的其他参数。
